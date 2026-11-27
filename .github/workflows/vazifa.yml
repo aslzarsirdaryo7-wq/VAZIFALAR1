@@ -2,7 +2,7 @@ name: Kunlik vazifalar
 
 on:
   schedule:
-    - cron: "0 15 * * *"   # har kuni 15:00 UTC = 20:00 Toshkent
+    - cron: '0 15 * * *'   # har kuni 15:00 UTC = 20:00 Toshkent
   workflow_dispatch:        # "Run workflow" tugmasi — hozir yuborish
 
 jobs:
