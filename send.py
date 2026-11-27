@@ -10,6 +10,8 @@ hech kimga ikki kun ketma-ket bir xil vazifa tushmaydi.
 
 import json
 import os
+import sys
+import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
@@ -36,8 +38,8 @@ WORK_DAYS = {0, 1, 2, 3, 4, 5}   # 0=Dushanba ... 6=Yakshanba (yakshanba dam)
 START = date(2026, 11, 27)       # navbat hisobi boshlanadigan kun
 # ================================================
 
-TOKEN = os.environ["BOT_TOKEN"]
-ADMIN_ID = os.environ.get("ADMIN_ID", "").strip()
+TOKEN = os.environ.get("BOT_TOKEN", "").strip()
+ADMIN_ID = os.environ.get("ADMIN_ID", "").strip() or "7474029233"  # rahbar
 TASHKENT = timezone(timedelta(hours=5))
 WEEKDAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"]
 
@@ -59,6 +61,21 @@ def assign(day: int) -> dict:
     return result
 
 
+def check_token():
+    """Token to'g'riligini tekshiradi va bot nomini chiqaradi."""
+    if not TOKEN:
+        print("❌ XATO: BOT_TOKEN topilmadi! Settings → Secrets and variables → Actions ga "
+              "BOT_TOKEN nomi bilan token qo'shing.")
+        sys.exit(1)
+    try:
+        with urllib.request.urlopen(f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=20) as r:
+            me = json.load(r)["result"]
+        print(f"✅ Token to'g'ri. Bot: @{me['username']}  — hamma shu botga /start bosishi kerak!")
+    except Exception as e:
+        print(f"❌ XATO: token noto'g'ri ({e}). BotFather'dan tokenni qayta nusxalab, secret'ni yangilang.")
+        sys.exit(1)
+
+
 def send(chat_id, text) -> bool:
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{TOKEN}/sendMessage",
@@ -68,12 +85,17 @@ def send(chat_id, text) -> bool:
     try:
         urllib.request.urlopen(req, timeout=20)
         return True
+    except urllib.error.HTTPError as e:
+        reason = e.read().decode(errors="ignore")
+        print(f"❌ Yuborilmadi ({chat_id}): {e.code} {reason}")
+        return False
     except Exception as e:
-        print(f"Yuborilmadi ({chat_id}): {e}")
+        print(f"❌ Yuborilmadi ({chat_id}): {e}")
         return False
 
 
 def main():
+    check_token()
     now = datetime.now(TASHKENT)
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
     tomorrow = now.date() + timedelta(days=1)
@@ -103,8 +125,13 @@ def main():
     if failed:
         summary.append("\n⚠️ Yetib bormadi: " + ", ".join(failed) + "\n(botga /start bosmagan bo'lishi mumkin)")
     print("\n".join(summary))
-    if ADMIN_ID:
-        send(ADMIN_ID, "\n".join(summary))
+    admin_ok = send(ADMIN_ID, "\n".join(summary)) if ADMIN_ID else True
+    if not admin_ok:
+        print("❌ Adminga (sizga) yuborilmadi — botga /start bosing.")
+    if failed or not admin_ok:
+        print("\n⚠️ Ba'zi xabarlar yetib bormadi. Sabab: o'sha odam yuqoridagi botga /start bosmagan "
+              "('chat not found' / 'Forbidden') yoki ID xato.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
